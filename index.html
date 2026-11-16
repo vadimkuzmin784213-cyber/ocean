@@ -1,0 +1,490 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Тайны океана</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600&family=Unbounded:wght@500;700&display=swap">
+<style>
+/* Layout: a depth gauge pinned on the left edge, what lives at that depth on the right; the whole page darkens as you descend. */
+:root{
+  --bg:#175a82;
+  --ink:#eef8ff;
+  --ink-dim:#bcd5e7;
+  --lume:#62f0d2;
+  --lume-ink:#02231d;
+  --foam:#bfe9ff;
+  --panel:rgba(3,12,28,.74);
+  --line:rgba(190,230,255,.18);
+  --gw:88px;
+  --gh:clamp(380px,calc(100svh - 28px),680px);
+  --font-display:'Unbounded','Onest',system-ui,sans-serif;
+  --font-body:'Onest',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  padding-block:24px 56px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--bg);
+  color:var(--ink);
+  font:16px/1.55 var(--font-body);
+}
+#snow{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.wrap{position:relative;z-index:1;max-width:980px;margin:0 auto}
+:focus-visible{outline:2px solid #fff;outline-offset:2px}
+
+/* hero */
+h1{font:700 clamp(36px,10vw,68px)/1.02 var(--font-display);margin:4px 0 14px;letter-spacing:-.01em;text-wrap:balance}
+.lead{max-width:58ch;margin:0 0 18px;font-size:17px}
+
+/* zone chips */
+.zones{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:thin}
+.zones button{
+  flex:0 0 auto;display:grid;gap:1px;text-align:left;cursor:pointer;
+  font:500 13.5px/1.25 var(--font-body);color:var(--ink);
+  background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:9px 14px;
+}
+.zones button small{font-size:11.5px;color:var(--ink-dim)}
+.zones button[aria-pressed="true"]{background:var(--lume);border-color:var(--lume);color:var(--lume-ink)}
+.zones button[aria-pressed="true"] small{color:#06483c}
+.zones .go{border-color:var(--lume)}
+
+/* explorer */
+.dive{display:grid;grid-template-columns:var(--gw) minmax(0,1fr);gap:14px;margin-top:14px;align-items:start}
+.gauge{
+  position:sticky;top:max(12px,env(safe-area-inset-top,0px));
+  height:var(--gh);touch-action:none;user-select:none;-webkit-user-select:none;cursor:ns-resize;
+}
+.gauge:focus-visible{outline-offset:4px;border-radius:12px}
+.rail{position:absolute;left:0;right:0;top:15px;bottom:15px}
+.track{
+  position:absolute;left:2px;width:22px;top:0;bottom:0;border-radius:11px;border:1px solid rgba(255,255,255,.28);
+  background:linear-gradient(to bottom,#5dc2ee 0%,#2d86c4 10%,#123f78 26%,#0a2145 50%,#050f26 68%,#010309 100%);
+}
+.sep{position:absolute;left:2px;width:22px;height:1px;background:rgba(255,255,255,.35)}
+.mark{position:absolute;left:34px;transform:translateY(-50%);white-space:nowrap;line-height:1.15;pointer-events:none}
+.mark::before{content:"";position:absolute;left:-10px;top:50%;width:7px;height:1px;background:rgba(255,255,255,.55)}
+.mark b{display:block;font:600 11.5px/1.15 var(--font-body);font-variant-numeric:tabular-nums}
+.mark span{display:block;font-size:10.5px;color:var(--ink-dim)}
+.thumb{
+  position:absolute;left:13px;width:30px;height:30px;transform:translate(-50%,-50%);border-radius:50%;
+  background:var(--lume);box-shadow:0 0 0 5px rgba(98,240,210,.25),0 0 24px rgba(98,240,210,.75);
+}
+.thumb::after{content:"";position:absolute;inset:9px;border-radius:50%;background:#bffcf0}
+
+.side{min-width:0;display:grid;gap:12px}
+.readout{
+  position:sticky;top:max(12px,env(safe-area-inset-top,0px));z-index:4;
+  background:var(--panel);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  border:1px solid var(--line);padding:10px 14px 12px;
+}
+.depth{font:700 clamp(32px,9vw,50px)/1 var(--font-display);font-variant-numeric:tabular-nums;white-space:nowrap}
+.depth small{font-size:.45em;font-weight:500;margin-left:.3em;color:var(--foam)}
+.zname{margin-top:6px;font-weight:600;font-size:16px;line-height:1.25}
+.zname span{display:block;font-weight:400;font-size:12.5px;font-style:italic;color:var(--ink-dim)}
+
+.panel{background:var(--panel);border:1px solid var(--line);padding:12px 14px}
+.cond{margin:0;display:grid;gap:6px}
+.cond div{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px;font-size:14px;line-height:1.35}
+.cond dt{color:var(--ink-dim)}
+.cond dd{margin:0}
+.zfact{margin:0;font-size:14.5px}
+.side h2{font:500 16px/1.2 var(--font-display);margin:6px 0 0}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);padding:12px 14px;display:grid;gap:7px;align-content:start;animation:in .35s ease both}
+.card h3{margin:0;font:600 16px/1.25 var(--font-body)}
+.card h3 em{display:block;margin-top:2px;font-size:12.5px;font-weight:400;color:var(--ink-dim)}
+.card p{margin:0;font-size:14.5px;line-height:1.5}
+.card p.rl{font-size:12.5px;color:var(--ink-dim)}
+.range{position:relative;height:12px}
+.range::before{content:"";position:absolute;left:0;right:0;top:4px;height:4px;background:rgba(190,230,255,.2)}
+.range i{position:absolute;top:3px;height:6px;min-width:3px;background:var(--lume)}
+.range b{position:absolute;top:0;width:2px;height:12px;background:#fff;transform:translateX(-1px)}
+.note{margin:0;font-size:13.5px}
+@keyframes in{from{opacity:0;transform:translateY(6px)}}
+
+/* text sections */
+.sec{margin-top:64px}
+.sec h2{font:500 clamp(22px,5.5vw,32px)/1.15 var(--font-display);margin:0 0 18px;text-wrap:balance}
+.story{max-width:66ch}
+.story h3{font:600 18px/1.3 var(--font-body);margin:26px 0 8px}
+.story p{margin:0 0 12px}
+.facts{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:22px 28px}
+.facts div{border-top:1px solid rgba(255,255,255,.4);padding-top:10px}
+.facts dt{font:700 24px/1.1 var(--font-display);color:var(--lume);font-variant-numeric:tabular-nums}
+.facts dd{margin:6px 0 0;font-size:15px}
+.src{font-size:13.5px;max-width:70ch}
+.src p{margin:0 0 8px}
+.src a{color:var(--foam)}
+
+@media (min-width:760px){
+  :root{--gw:150px}
+  .mark b{font-size:13px}
+  .mark span{font-size:12px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+</head>
+<body>
+<canvas id="snow" aria-hidden="true"></canvas>
+<div class="wrap">
+  <header>
+    <h1>Тайны океана</h1>
+    <p class="lead">Спуститесь от поверхности до дна Марианского жёлоба. Тяните ползунок слева вниз: справа появятся те, кто живёт на этой глубине.</p>
+    <nav class="zones" id="zones" aria-label="Зоны океана"></nav>
+  </header>
+
+  <main>
+    <div class="dive">
+      <div class="gauge" id="gauge" role="slider" tabindex="0" aria-orientation="vertical" aria-label="Глубина океана"
+           aria-valuemin="0" aria-valuemax="10935" aria-valuenow="0" aria-valuetext="0 метров">
+        <div class="rail" id="rail">
+          <div class="track"></div>
+          <div id="marks"></div>
+          <div class="thumb" id="thumb" style="top:0%"></div>
+        </div>
+      </div>
+
+      <div class="side">
+        <section class="readout" aria-label="Текущая глубина">
+          <div class="depth"><span id="depthNum">0</span><small>м</small></div>
+          <div class="zname"><b id="zoneName"></b><span id="zoneLatin"></span></div>
+        </section>
+        <section class="panel" aria-label="Условия на этой глубине">
+          <dl class="cond">
+            <div><dt>Свет</dt><dd id="cLight"></dd></div>
+            <div><dt>Температура</dt><dd id="cTemp"></dd></div>
+            <div><dt>Давление</dt><dd id="cPress"></dd></div>
+          </dl>
+        </section>
+        <p class="panel zfact" id="zFact"></p>
+        <h2>Кто здесь живёт</h2>
+        <div class="cards" id="cards"></div>
+        <p class="note" id="note"></p>
+      </div>
+    </div>
+  </main>
+
+  <section class="sec" id="story">
+    <h2>Рассказ по плакату</h2>
+    <div class="story">
+      <h3>Вступление</h3>
+      <p>Океан занимает около 71% поверхности Земли, и в нём собрана почти вся вода планеты. Но он остаётся одним из самых малоизученных мест на Земле. Подробные карты есть почти для всей поверхности Луны и Марса, а дно океана откартографировано примерно на 27%. Поэтому мой плакат называется «Тайны океана».</p>
+      <p>В центре плывёт синий кит, самое большое животное, какое когда-либо жило на планете. Вокруг него три темы: кто живёт в океане, что скрывают глубины и почему мы знаем об океане так мало.</p>
+
+      <h3>Невероятные жители океана</h3>
+      <p>Слева на плакате жители океана, которые кажутся придуманными. Многие из них умеют светиться. Это называется биолюминесценция, и по оценкам учёных светится около трёх четвертей животных, живущих в толще воды. Свет помогает заманивать добычу, отпугивать врагов и находить друг друга.</p>
+      <p>Хрустальная медуза светится зелёным благодаря белку GFP, а за изучение этого белка в 2008 году дали Нобелевскую премию. Гигантский кальмар вырастает до 13 метров, а его глаза размером с большую тарелку самые большие в животном мире. Живым в природе его впервые засняли только в 2012 году.</p>
+      <p>Рыба-капля с плаката выглядит как мягкий комок, но такой она становится лишь на поверхности. На глубине около километра, под давлением, это обычная рыба.</p>
+
+      <h3>Неизвестные глубины океана</h3>
+      <p>Внизу на плакате показаны глубины. Самые глубокие места океана уходят больше чем на 11 километров. Самое глубокое из известных, бездна Челленджера в Марианском жёлобе, лежит примерно на 10 935 метрах. Если поставить туда Эверест, над его вершиной останется ещё около двух километров воды.</p>
+      <p>Солнечный свет доходит лишь на несколько сотен метров, а глубже 1 000 метров стоит вечная темнота. С каждыми 10 метрами давление растёт на одну атмосферу, поэтому на самом дне оно больше тысячи атмосфер, около тонны на каждый квадратный сантиметр.</p>
+      <p>И всё же там есть жизнь. Рыба-удильщик приманивает добычу светящейся «удочкой». У горячих источников живут трубчатые черви без рта, а на самом дне находят мелких рачков. Первыми на дно Марианского жёлоба в 1960 году спустились Жак Пикар и Дон Уолш на батискафе «Триест». Затонувший корабль внизу плаката напоминает о «Титанике», который лежит на глубине около 3 800 метров.</p>
+
+      <h3>Почему океан так мало изучен</h3>
+      <p>Справа на плакате три причины. Первая: огромные размеры. Объём океана около 1,3 миллиарда кубических километров воды.</p>
+      <p>Вторая: большая глубина и высокое давление. Аппарат, который идёт на дно, должен выдерживать нагрузку в сотни и тысячи атмосфер, поэтому такие аппараты сложны и дороги.</p>
+      <p>Третья: тёмные воды и сложные условия. Под водой не работают радио и GPS, там холодно и темно, а морская соль разъедает металл. Один день работы научного судна стоит десятки тысяч долларов. Поэтому исследователи используют сонары, роботов и подводные аппараты, и всё равно каждый год описывают около 2 000 новых морских видов.</p>
+
+      <h3>Вывод</h3>
+      <p>Океан влияет на всю нашу жизнь. Он поглощает значительную часть тепла и примерно четверть углекислого газа, который выбрасывает человек, а водоросли в нём производят значительную часть кислорода, которым мы дышим. Чем больше мы узнаём о глубинах, тем лучше понимаем, как беречь планету. Тайн в океане ещё очень много, и главные открытия, возможно, впереди.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="facts">
+    <h2>Факты об океане</h2>
+    <dl class="facts">
+      <div><dt>71%</dt><dd>поверхности Земли покрыто океаном. В нём около 97% всей воды планеты.</dd></div>
+      <div><dt>≈ 3 700 м</dt><dd>средняя глубина океана.</dd></div>
+      <div><dt>10 935 м</dt><dd>бездна Челленджера в Марианском жёлобе, Тихий океан. Это почти на 2 км глубже, чем высота Эвереста (8 849 м).</dd></div>
+      <div><dt>≈ 1 100 атм</dt><dd>давление на дне жёлоба, около 1,1 тонны на каждый квадратный сантиметр.</dd></div>
+      <div><dt>1960</dt><dd>Жак Пикар и Дон Уолш достигли дна на батискафе «Триест». В 2012 году туда в одиночку нырнул режиссёр Джеймс Кэмерон.</dd></div>
+      <div><dt>1 000 м</dt><dd>глубже почти не проникает солнечный свет. Растения и водоросли могут жить только в верхних 200 метрах.</dd></div>
+      <div><dt>≈ 75%</dt><dd>животных в толще воды умеют светиться (оценка исследователей 2017 года).</dd></div>
+      <div><dt>27,3%</dt><dd>дна детально откартографировано по данным проекта Seabed 2030 (2025 год).</dd></div>
+      <div><dt>≈ 2 000</dt><dd>новых морских видов описывают учёные каждый год.</dd></div>
+      <div><dt>30 м</dt><dd>длина синего кита. Он весит до 150 тонн и за день съедает до 4 тонн криля.</dd></div>
+      <div><dt>1977</dt><dd>год, когда у Галапагосских островов на глубине около 2 500 м нашли жизнь без солнечного света, рядом с горячими источниками.</dd></div>
+      <div><dt>3 млн</dt><dd>затонувших кораблей лежит на дне океанов (оценка ЮНЕСКО).</dd></div>
+    </dl>
+  </section>
+
+  <section class="sec" id="sources">
+    <div class="panel src">
+      <p>Глубины обитания в карточках приблизительные: у многих видов они зависят от района и времени суток.</p>
+      <p>Доля откартографированного дна: <a href="https://tnfsa.nippon-foundation.or.jp/news/2756701" target="_blank" rel="noopener">Nippon Foundation – GEBCO Seabed 2030</a>.</p>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  var DMAX=10935;
+  var DP=[0,200,1000,4000,6000,DMAX], PP=[0,.10,.26,.50,.68,1];
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function d2p(d){d=clamp(d,0,DMAX);for(var i=1;i<DP.length;i++){if(d<=DP[i])return PP[i-1]+(PP[i]-PP[i-1])*(d-DP[i-1])/(DP[i]-DP[i-1]);}return 1;}
+  function p2d(p){p=clamp(p,0,1);for(var i=1;i<PP.length;i++){if(p<=PP[i])return DP[i-1]+(DP[i]-DP[i-1])*(p-PP[i-1])/(PP[i]-PP[i-1]);}return DMAX;}
+  function fmt(n){return Math.round(n).toLocaleString('ru-RU');}
+  var reduced=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function $(id){return document.getElementById(id);}
+
+  var ZONES=[
+    {to:200,name:'Солнечная зона',lat:'эпипелагиаль',light:'Много света, идёт фотосинтез',temp:'до +30 °C у поверхности в тропиках',
+     fact:'Здесь растёт фитопланктон, который даёт значительную часть кислорода на Земле. На нём держатся почти все морские цепи питания.',chip:'Солнечная',range:'0–200 м',jump:100},
+    {to:1000,name:'Сумеречная зона',lat:'мезопелагиаль',light:'Слабый синий отблеск, к 1 000 м почти темно',temp:'быстро холодает, до ≈ 4 °C',
+     fact:'Каждую ночь миллиарды животных поднимаются отсюда к поверхности кормиться, а к утру опускаются обратно. Это самая большая миграция на планете.',chip:'Сумеречная',range:'200–1 000 м',jump:600},
+    {to:4000,name:'Полуночная зона',lat:'батипелагиаль',light:'Полная темнота, только свет самих животных',temp:'≈ 2–4 °C',
+     fact:'Солнечный свет сюда не доходит. Еды мало, поэтому многие хищники ждут добычу на месте и умеют проглотить жертву крупнее себя.',chip:'Полуночная',range:'1 000–4 000 м',jump:2000},
+    {to:6000,name:'Абиссальная зона',lat:'абиссопелагиаль',light:'Темнота',temp:'≈ 1–3 °C',
+     fact:'Здесь лежат огромные ровные равнины, покрытые илом. Еда падает сверху как «морской снег»: крошки отмерших организмов.',chip:'Бездна',range:'4 000–6 000 м',jump:5000},
+    {to:1e9,name:'Ультраабиссаль, жёлоба',lat:'хадопелагиаль',light:'Темнота',temp:'≈ 1–4 °C',
+     fact:'Название зоны происходит от Аида, греческого царства мёртвых. Это глубоководные жёлоба, самый глубокий из них Марианский. Давление здесь выше 600 атмосфер, но жизнь есть даже на самом дне.',chip:'Жёлоба',range:'6 000–10 935 м',jump:DMAX}
+  ];
+  function zoneIndex(d){for(var i=0;i<ZONES.length;i++){if(d<ZONES[i].to)return i;}return ZONES.length-1;}
+
+  var CREATURES=[
+    {id:'clown',n:'Рыба-клоун',l:'Amphiprioninae',a:1,b:15,t:5,poster:1,
+     x:'Живёт на коралловых рифах среди щупалец актинии. Слизь защищает рыбу от жгучих клеток хозяйки. Самая крупная рыбка в стайке становится самкой.'},
+    {id:'aequorea',n:'Хрустальная медуза',l:'Aequorea victoria',a:0,b:100,t:20,poster:1,
+     x:'Светится зелёным из-за белка GFP. Его выделили из этой медузы, и в 2008 году за это открытие дали Нобелевскую премию по химии. Сегодня им метят клетки в медицинских исследованиях.'},
+    {id:'bluewhale',n:'Синий кит',l:'Balaenoptera musculus',a:0,b:500,t:100,poster:1,
+     x:'Самое большое животное за всю историю Земли: до 30 м в длину и около 150 тонн. Питается крилем, за день съедает до 4 тонн. Обычно кормится на глубине до 200 м.'},
+    {id:'leatherback',n:'Кожистая черепаха',l:'Dermochelys coriacea',a:0,b:1280,t:150,
+     x:'Самая крупная морская черепаха, до 2 м длиной. Ныряет почти на 1 300 м, это рекорд среди рептилий. Панцирь у неё не твёрдый, а кожистый.'},
+    {id:'lantern',n:'Миктофиды, светящиеся рыбки',l:'Myctophidae',a:200,b:1000,t:600,poster:1,
+     x:'Маленькие рыбки с рядами светящихся точек на боках и брюхе. Это одни из самых многочисленных позвоночных на Земле. Ночью поднимаются к поверхности, днём уходят вглубь.'},
+    {id:'hatchet',n:'Рыба-топорик',l:'Argyropelecus',a:200,b:1000,t:400,
+     x:'Серебристая плоская рыбка с глазами, направленными вверх. Светящиеся органы на брюхе повторяют слабый свет сверху, и снизу её не видно на фоне воды.'},
+    {id:'viper',n:'Рыба-гадюка',l:'Chauliodus sloani',a:250,b:1500,t:600,
+     x:'Клыки у неё такие длинные, что не помещаются во рту и торчат наружу. На спинном плавнике есть светящаяся приманка для добычи.'},
+    {id:'giantsquid',n:'Гигантский кальмар',l:'Architeuthis dux',a:300,b:1000,t:600,poster:1,
+     x:'Длина до 13 м, глаза до 27 см: самые большие в животном мире. Живым в природе его сняли на видео только в 2012 году.'},
+    {id:'blobfish',n:'Рыба-капля',l:'Psychrolutes marcidus',a:600,b:1200,t:900,poster:1,
+     x:'Живёт у берегов Австралии и Тасмании. На глубине она выглядит как обычная рыба. Мягким комком её делает резкий перепад давления, когда рыбу поднимают на поверхность.'},
+    {id:'vampire',n:'Вампировый кальмар',l:'Vampyroteuthis infernalis',a:600,b:1200,t:800,
+     x:'Живёт там, где почти нет кислорода. Вместо чернил выпускает облако светящейся слизи. «Вампиром» назван из-за тёмной окраски и перепонки между щупальцами.'},
+    {id:'sperm',n:'Кашалот',l:'Physeter macrocephalus',a:200,b:2250,t:1000,
+     x:'Ныряет до 2 000 м и глубже, задерживая дыхание до 90 минут. Охотится на гигантских кальмаров, и на его коже остаются круглые шрамы от присосок.'},
+    {id:'gulper',n:'Большерот-пеликан',l:'Eurypharynx pelecanoides',a:500,b:3000,t:1500,
+     x:'Пасть огромная, как у пеликана, и растягивается, чтобы проглотить добычу крупнее себя. На кончике хвоста у него светящийся «фонарик».'},
+    {id:'fangtooth',n:'Клыкозуб',l:'Anoplogaster cornuta',a:500,b:5000,t:1500,
+     x:'Зубы у него самые большие относительно размера тела среди всех рыб. Клыки такие длинные, что в нёбе есть специальные ямки, куда они прячутся.'},
+    {id:'colossal',n:'Колоссальный кальмар',l:'Mesonychoteuthis hamiltoni',a:1000,b:2000,t:1500,
+     x:'Самый тяжёлый из беспозвоночных. Экземпляр, пойманный у Антарктиды в 2007 году, весил около 495 кг. На щупальцах у него крючки, а глаза очень чувствительны к слабому свету.'},
+    {id:'angler',n:'Рыба-удильщик',l:'Lophiiformes',a:1000,b:4000,t:2000,poster:1,
+     x:'На голове у самки светящаяся «удочка», свет создают живущие в ней бактерии. У многих видов крошечный самец вцепляется в самку и срастается с ней.'},
+    {id:'isopod',n:'Гигантская изопода',l:'Bathynomus giganteus',a:200,b:2200,t:1000,
+     x:'Родственница мокрицы длиной до 50 см. Питается тем, что упало на дно, и может годами обходиться без еды.'},
+    {id:'tubeworm',n:'Гигантский трубчатый червь',l:'Riftia pachyptila',a:2000,b:3000,t:2500,
+     x:'Живёт у горячих источников на дне. Рта и кишечника у него нет: червя кормят бактерии, которые получают энергию из химических веществ. Длина до 2,4 м.'},
+    {id:'dumbo',n:'Осьминог дамбо',l:'Grimpoteuthis',a:400,b:7000,t:3000,
+     x:'Плавает, взмахивая «ушами», так называют плавники по бокам головы. Обычно держится на глубине 400–4 800 м, а в 2020 году один попал в кадр почти на 7 000 м.'},
+    {id:'grenadier',n:'Гренадёр, макрурус',l:'Coryphaenoides',a:800,b:6000,t:3500,
+     x:'Рыба с крупной головой и длинным сужающимся хвостом. Ест всё, что упало сверху, и первой приплывает к приманке, которую опускают учёные.'},
+    {id:'alicella',n:'Гигантский бокоплав',l:'Alicella gigantea',a:4000,b:7800,t:5500,
+     x:'Большинство бокоплавов мельче сантиметра, а этот вырастает до 30 см. Питается падалью, которая опускается на дно.'},
+    {id:'holothuria',n:'Глубоководные голотурии',l:'Holothuroidea, морские огурцы',a:4000,b:10935,t:8000,
+     x:'Медленно ползают по илу и едят всё, что осело на дно. В глубоких жёлобах их особенно много.'},
+    {id:'snailfish',n:'Марианская улитковая рыба',l:'Pseudoliparis swirei',a:6000,b:8400,t:7500,
+     x:'Бледная рыбка до 30 см, живёт стаями в Марианском жёлобе. Глубже примерно 8 200 м рыб почти не находили. Рекорд для рыбы: 8 336 м (2022 год, Япония, родственный вид).'},
+    {id:'hirondellea',n:'Рачки Hirondellea gigas',l:'бокоплавы',a:7000,b:10935,t:9500,
+     x:'Мелкие рачки живут на самом дне бездны Челленджера. Питаются остатками, упавшими сверху, и умеют переваривать даже древесину. В их телах находили микропластик.'},
+    {id:'xeno',n:'Ксенофиофоры',l:'Xenophyophorea',a:5000,b:10700,t:9000,
+     x:'Похожи на комки или губки до 20 см, но это одна гигантская клетка. Найдены в Марианском жёлобе на глубине около 10 600 м.'}
+  ];
+
+  var MARKS=[
+    {d:0,a:'0 м',b:'Волны'},{d:200,a:'200 м',b:'Сумерки'},{d:1000,a:'1 000 м',b:'Тьма'},
+    {d:3800,a:'3 800 м',b:'Титаник'},{d:6000,a:'6 000 м',b:'Жёлоба'},{d:8849,a:'8 849 м',b:'Эверест'},{d:DMAX,a:'10 935 м',b:'Дно'}
+  ];
+
+  /* build gauge marks and zone separators */
+  var marksEl=$('marks'), railEl=$('rail');
+  [200,1000,4000,6000].forEach(function(d){
+    var s=document.createElement('i');s.className='sep';s.style.top=(d2p(d)*100)+'%';railEl.querySelector('.track').insertAdjacentElement('afterend',s);
+  });
+  MARKS.forEach(function(m){
+    var e=document.createElement('div');e.className='mark';e.style.top=(d2p(m.d)*100)+'%';
+    e.innerHTML='<b>'+m.a+'</b><span>'+m.b+'</span>';marksEl.appendChild(e);
+  });
+
+  /* zone chips + autoplay button */
+  var zonesEl=$('zones');
+  ZONES.forEach(function(z,i){
+    var b=document.createElement('button');b.type='button';b.setAttribute('aria-pressed','false');b.dataset.z=i;
+    b.innerHTML=z.chip+'<small>'+z.range+'</small>';
+    b.addEventListener('click',function(){goTo(z.jump);});
+    zonesEl.appendChild(b);
+  });
+  var goBtn=document.createElement('button');goBtn.type='button';goBtn.className='go';goBtn.setAttribute('aria-pressed','false');
+  goBtn.innerHTML='Автоспуск<small>около 45 секунд</small>';
+  goBtn.addEventListener('click',function(){auto?stopAuto():startAuto();});
+  zonesEl.appendChild(goBtn);
+  var chipEls=zonesEl.querySelectorAll('button[data-z]');
+
+  /* background colour by depth */
+  var STOPS=[[0,[23,90,130]],[.10,[19,76,114]],[.26,[12,53,96]],[.5,[6,32,63]],[.68,[3,15,38]],[1,[1,3,9]]];
+  function bgAt(p){
+    for(var i=1;i<STOPS.length;i++){
+      if(p<=STOPS[i][0]){
+        var a=STOPS[i-1],b=STOPS[i],k=(p-a[0])/(b[0]-a[0]);
+        return 'rgb('+[0,1,2].map(function(j){return Math.round(a[1][j]+(b[1][j]-a[1][j])*k);}).join(',')+')';
+      }
+    }
+    return 'rgb(1,3,9)';
+  }
+
+  /* state */
+  var depth=0, zoneIdx=-1, shownKey='';
+  var thumb=$('thumb'), gauge=$('gauge'), depthNum=$('depthNum');
+  var cards=$('cards'), note=$('note');
+
+  function pressure(d){
+    var atm=1+d/10.06;
+    if(d<10)return '≈ 1 атм, как на суше';
+    var s='≈ '+fmt(atm)+' атм';
+    if(atm>=300)s+=', около '+(atm*1.033/1000).toFixed(1).replace('.',',')+' т на см²';
+    return s;
+  }
+
+  function renderCards(d,p){
+    var avail=CREATURES.filter(function(c){return d>=c.a&&d<=c.b;});
+    avail.forEach(function(c){c._s=Math.abs(p-d2p(c.t))-(c.poster?0.06:0);});
+    avail.sort(function(x,y){return x._s-y._s;});
+    var show=avail.slice(0,5);
+    var key=show.map(function(c){return c.id;}).join('|');
+    if(key!==shownKey){
+      shownKey=key;
+      cards.innerHTML=show.map(function(c){
+        var lo=d2p(c.a)*100, hi=d2p(c.b)*100;
+        return '<article class="card" data-a="'+c.a+'" data-b="'+c.b+'">'
+          +'<h3>'+c.n+'<em>'+c.l+'</em></h3>'
+          +'<div class="range" aria-hidden="true"><i style="left:'+lo+'%;width:'+Math.max(hi-lo,1)+'%"></i><b></b></div>'
+          +'<p class="rl">Встречается на глубине '+fmt(c.a)+'–'+fmt(c.b)+' м</p>'
+          +'<p>'+c.x+'</p></article>';
+      }).join('');
+    }
+    var markers=cards.querySelectorAll('.range b');
+    for(var i=0;i<markers.length;i++){markers[i].style.left=(p*100)+'%';}
+    note.textContent=avail.length>show.length?'Показано '+show.length+' из '+avail.length+' видов на этой глубине. Двигайте ползунок: список меняется.':'';
+  }
+
+  function set(d){
+    d=clamp(d,0,DMAX);depth=d;
+    var p=d2p(d);
+    thumb.style.top=(p*100)+'%';
+    depthNum.textContent=fmt(d);
+    gauge.setAttribute('aria-valuenow',Math.round(d));
+    gauge.setAttribute('aria-valuetext',fmt(d)+' метров');
+    document.documentElement.style.setProperty('--bg',bgAt(p));
+    $('cPress').textContent=pressure(d);
+    var zi=zoneIndex(d);
+    if(zi!==zoneIdx){
+      zoneIdx=zi;var z=ZONES[zi];
+      $('zoneName').textContent=z.name;$('zoneLatin').textContent=z.lat;
+      $('cLight').textContent=z.light;$('cTemp').textContent=z.temp;$('zFact').textContent=z.fact;
+      for(var i=0;i<chipEls.length;i++){chipEls[i].setAttribute('aria-pressed',i===zi?'true':'false');}
+    }
+    renderCards(d,p);
+  }
+
+  /* pointer + keyboard */
+  var dragging=false;
+  function fromPointer(e){var r=railEl.getBoundingClientRect();return p2d((e.clientY-r.top)/r.height);}
+  gauge.addEventListener('pointerdown',function(e){
+    stopAuto();dragging=true;
+    try{gauge.setPointerCapture(e.pointerId);}catch(_){}
+    set(fromPointer(e));
+    try{gauge.focus({preventScroll:true});}catch(_){}
+    e.preventDefault();
+  });
+  gauge.addEventListener('pointermove',function(e){if(dragging)set(fromPointer(e));});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(function(n){gauge.addEventListener(n,function(){dragging=false;});});
+  gauge.addEventListener('keydown',function(e){
+    var p=d2p(depth),k=e.key,np=null;
+    if(k==='ArrowDown'||k==='ArrowRight')np=p+.01;
+    else if(k==='ArrowUp'||k==='ArrowLeft')np=p-.01;
+    else if(k==='PageDown')np=p+.1;
+    else if(k==='PageUp')np=p-.1;
+    else if(k==='Home')np=0;
+    else if(k==='End')np=1;
+    if(np!==null){e.preventDefault();stopAuto();set(p2d(np));}
+  });
+
+  /* animated jump and autoplay */
+  var tw=null, af=null, auto=false, last=0;
+  function goTo(target){
+    stopAuto();
+    if(reduced){set(target);return;}
+    var p0=d2p(depth),p1=d2p(target),t0=performance.now(),dur=700+Math.abs(p1-p0)*900;
+    function step(t){
+      var k=Math.min(1,(t-t0)/dur),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+      set(p2d(p0+(p1-p0)*e));
+      if(k<1)tw=requestAnimationFrame(step);
+    }
+    tw=requestAnimationFrame(step);
+  }
+  function tick(t){
+    if(!auto)return;
+    var dt=(t-last)/1000;last=t;
+    var p=d2p(depth)+dt/45;
+    if(p>=1){set(DMAX);stopAuto();return;}
+    set(p2d(p));af=requestAnimationFrame(tick);
+  }
+  function startAuto(){
+    cancelAnimationFrame(tw);
+    if(depth>=DMAX-1)set(0);
+    auto=true;goBtn.setAttribute('aria-pressed','true');goBtn.innerHTML='Остановить<small>спуск идёт</small>';
+    last=performance.now();af=requestAnimationFrame(tick);
+  }
+  function stopAuto(){
+    auto=false;cancelAnimationFrame(af);cancelAnimationFrame(tw);
+    goBtn.setAttribute('aria-pressed','false');goBtn.innerHTML='Автоспуск<small>около 45 секунд</small>';
+  }
+
+  /* marine snow and bioluminescent sparks */
+  var cv=$('snow'),cx=cv.getContext('2d'),W=0,H=0,dots=[],dpr=Math.min(2,window.devicePixelRatio||1);
+  function size(){
+    W=window.innerWidth;H=window.innerHeight;cv.width=W*dpr;cv.height=H*dpr;cx.setTransform(dpr,0,0,dpr,0,0);
+    var n=Math.round(Math.min(90,W*H/14000));dots=[];
+    for(var i=0;i<n;i++)dots.push({x:Math.random()*W,y:Math.random()*H,r:Math.random()*1.6+.6,v:Math.random()*14+6,s:Math.random()*6.28,glow:Math.random()<.2});
+  }
+  function draw(ts,dt){
+    cx.clearRect(0,0,W,H);
+    var g=clamp((depth-150)/500,0,1),p=d2p(depth);
+    for(var i=0;i<dots.length;i++){
+      var o=dots[i];
+      if(dt){o.y+=o.v*dt;o.x+=Math.sin(ts/1800+o.s)*.15;if(o.y>H+4){o.y=-4;o.x=Math.random()*W;}}
+      if(o.glow){
+        if(g<=0)continue;
+        var a=g*(.35+.45*Math.sin(ts/700+o.s*3));
+        cx.fillStyle='rgba(98,240,210,'+clamp(a,0,.85)+')';
+        cx.beginPath();cx.arc(o.x,o.y,o.r+1.2,0,6.283);cx.fill();
+      }else{
+        cx.fillStyle='rgba(220,240,255,'+(.32*(1-.5*p))+')';
+        cx.beginPath();cx.arc(o.x,o.y,o.r,0,6.283);cx.fill();
+      }
+    }
+  }
+  var lastT=0;
+  function loop(ts){
+    var dt=lastT?Math.min(.05,(ts-lastT)/1000):0;lastT=ts;
+    draw(ts,dt);requestAnimationFrame(loop);
+  }
+  size();window.addEventListener('resize',size);
+  if(reduced){draw(0,0);}else{requestAnimationFrame(loop);}
+
+  set(0);
+})();
+</script>
+
+</body>
+</html>
